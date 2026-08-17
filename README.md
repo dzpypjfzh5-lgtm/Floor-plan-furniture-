@@ -56,17 +56,18 @@ mangle the layout. Sizes are width × depth on the floor, in millimetres as meas
 | Dining table | 1530 × 820 | Living |
 | Bookshelf (airlock) | 970 × 290 | Living |
 | Bookshelf (changing space) | 900 × 280 | Living |
-| Fabric swing | 3000 mm circle (1500 mm radius) | see below |
+| Fabric swing | 2120 mm circle (1060 mm radius) | Living |
 
-**Everything fits except the swing.** Floor coverage lands at 29% in Bed 1, 36% in Bed 2 and
-33% in the living/dining, so there's room to move in all of them.
+**Everything fits.** Floor coverage lands at 29% in Bed 1, 36% in Bed 2 and 51% in the
+living/dining, which is busy but workable.
 
-- **The fabric swing needs a clear 3.0 m circle** on the floor — a 1500 mm radius swept around
-  a single ceiling point, as you specified. Nothing indoors can take it once furnished. Bed 1
-  is the only interior room that fits it *empty* (4.30 × 3.10); the garage misses by 100 mm at
-  2.90 wide, and the living/dining's legs are only 2.50 m deep. It's parked in the courtyard,
-  which takes it comfortably. It's modelled as a circle, not a square, so it collides
-  correctly — and it skips the doorway check, since fabric packs into a bag.
+- **The fabric swing needs a clear 2.12 m circle.** With 1.5 m of fabric from the ceiling
+  carabiner and a 45° limit on how far it swings from vertical, the floor circle it sweeps is
+  the base of that cone: 1.5 × sin 45° = **1.061 m radius**. Capping the angle matters — a full
+  hemisphere would need a 3.0 m circle, which nothing indoors can take once furnished, whereas
+  the 2.12 m circle fits the furnished living room with room to spare. It's modelled as a real
+  circle, not a square, so it collides correctly, and it skips the doorway check since fabric
+  packs into a bag.
 - **The couch is modelled as a true L**, not a rectangle. Its bounding box is 5.6 m² but its
   real footprint is 3.8 m²; as a rectangle it would have been wrongly reported as not fitting.
 - **The couch has to come in through the courtyard sliding door**, not the front door. At
@@ -153,6 +154,11 @@ Several printed figures still need reading carefully, and the app says so on eac
 - **The kitchen is a blocked zone.** The fridge is the only thing going in there and it's
   known to fit, so the benches aren't modelled. It's drawn hatched, and furniture can be
   parked there as a holding space but is flagged as clashing.
+- **The kitchen has one door**, at its north-west corner onto the dining end — the drawing
+  shows a single swing there, and the pantry takes up the east side, so it isn't an
+  open-ended galley. Position is good to about ±0.3 m off the scan. Since the kitchen is
+  blocked and no route to any other room passes through it, this door doesn't affect any fit
+  result; it's there for the drawing.
 
 Rooms with **no** printed dimension — bath, laundry, hall, and the wrap-around paving — carry
 no advertised size, so they absorb the slack and are marked *"sized to fit"* in the app.

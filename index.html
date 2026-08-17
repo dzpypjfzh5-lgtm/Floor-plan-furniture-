@@ -367,8 +367,11 @@ const PLAN = {
     { id:"halll",   name:"Hall / living opening", seg:[4.55,3.20, 4.55,4.10], w:0.90, rooms:["hall","living"],   type:"opening" },
     { id:"ldryd",   name:"Laundry door",          seg:[4.70,2.25, 5.47,2.25], w:0.77, rooms:["ldry","living"],   type:"door" },
     { id:"ldryx",   name:"Laundry rear door",     seg:[4.90,0.00, 5.60,0.00], w:0.70, rooms:["ldry","court"],    type:"external" },
-    { id:"kitchn",  name:"Kitchen north opening", seg:[5.00,4.85, 5.90,4.85], w:0.90, rooms:["kitchen","living"],type:"opening" },
-    { id:"kitche",  name:"Kitchen east opening",  seg:[6.90,6.30, 6.90,7.20], w:0.90, rooms:["kitchen","living"],type:"opening" },
+    /* The drawing shows a single door swing at the kitchen's north-west corner,
+       distinct from Bed 1's swing further north-west, and the pantry occupies
+       the east side — so one door at the dining end, not an open-ended galley.
+       Position is good to roughly ±0.3 m off the scan. */
+    { id:"kitchd",  name:"Kitchen door",          seg:[4.60,4.85, 5.42,4.85], w:0.82, rooms:["kitchen","living"],type:"door" },
     { id:"garped",  name:"Garage side door",      seg:[11.10,1.25,11.92,1.25],w:0.82, rooms:["garage","court"],  type:"door" },
     { id:"garroll", name:"Garage roller door",    seg:[11.20,7.30,13.60,7.30],w:2.40, rooms:["garage","out"],    type:"roller" }
   ],
@@ -378,7 +381,7 @@ const PLAN = {
      check takes the easiest available route. */
   routes: {
     living:  [["front"],["slider"]],
-    kitchen: [["front","kitche"],["front","kitchn"],["slider","kitchn"],["slider","kitche"]],
+    kitchen: [["front","kitchd"],["slider","kitchd"]],
     hall:    [["front","halll"],["slider","halll"]],
     bed1:    [["front","halll","bed1d"],["slider","halll","bed1d"]],
     bed2:    [["front","halll","bed2d"],["slider","halll","bed2d"]],
@@ -425,12 +428,13 @@ const FURNITURE = [
   { name:"Bookshelf (airlock)", w:0.97, d:0.29,             room:"living" },
   { name:"Bookshelf (changing space)", w:0.90, d:0.28,      room:"living" },
 
-  /* Hangs from a single ceiling point and swings through a hemisphere of
-     1.5 m radius, so on the floor it needs a clear 3.0 m circle. It is a
-     clearance zone rather than a carried object: `virtual` skips the doorway
+  /* Hangs from a single ceiling point on 1.5 m of fabric. Swinging no further
+     than 45° from vertical sweeps a cone, and the circle it needs on the floor
+     is that cone's base: 1.5 × sin 45° = 1.061 m radius, a 2.12 m circle.
+     A clearance zone rather than a carried object — `virtual` skips the doorway
      check, since the fabric packs into a bag. */
-  { name:"Fabric swing (3.0 m swing circle)", circle:1.50, virtual:true, room:"living",
-    assumed:"1.5 m radius measured from the ceiling carabiner, per your note" }
+  { name:"Fabric swing (2.12 m circle)", circle: 1.5*Math.SQRT1_2, virtual:true, room:"living",
+    assumed:"1.5 m carabiner-to-end at up to 45° from vertical → 1.06 m radius" }
 ];
 
 /* =======================================================================
