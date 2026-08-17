@@ -28,6 +28,44 @@ phone and the laptop, use **Save → Export file** (or *Copy JSON*) and import i
 Rotation snaps to 5°, and hard-snaps to square when it gets close. Dragging snaps
 flush to walls when a piece is square-on (turn this off under **Save**).
 
+## The furniture
+
+The measured list is in the `FURNITURE` constant near the top of the script, and loads
+automatically on first run. **Save → Reload my furniture list** restores it if you wipe or
+mangle the layout. Sizes are width × depth on the floor, in millimetres as measured:
+
+| Piece | Size | Room |
+|---|---|---|
+| Double bed | 2000 × 1460 | Bed 1 |
+| Side table × 2 | 520 × 300 | Bed 1 |
+| Chest of drawers (adults) | 1090 × 520 | Bed 1 |
+| Single bed × 2 | 2050 × 980 | Bed 2 |
+| Couch, L-shaped | 3170 × 1770 overall, 950 deep legs | Living |
+| Cube shelf | 1460 × 390 | Living |
+| Bookshelf × 2 (matched) | 710 × 300 | Living |
+| Narrow bookshelf | 400 × 300 | Living |
+| Cupboard | 800 × 310 | Living |
+| Chest of drawers (kids) | 1400 × 400 | Living |
+| Change table | 870 × 580 | Living |
+| Fridge | 700 × 700, 1720 high | Kitchen |
+
+**Everything fits.** Floor coverage lands at 29% in Bed 1, 36% in Bed 2, 27% in the
+living/dining and 7% in the kitchen, so there's room to move in all of them.
+
+Assumptions made, all visible in the app:
+
+- **Fridge depth is assumed 700 mm** — only height × width was noted. It's flagged in the
+  Furniture panel.
+- **The couch is modelled as a true L**, not a rectangle. Its bounding box is 5.6 m² but its
+  real footprint is 3.8 m²; as a rectangle it would have been wrongly reported as not fitting.
+- **The couch has to come in through the courtyard sliding door**, not the front door. At
+  950 mm deep it won't clear the 900 mm front door, but the 1600 mm slider takes it with
+  650 mm to spare. The app says so on the piece.
+- **The three beds are flagged "on edge"**. At 1460 and 980 mm wide they won't pass the
+  800 mm hall opening lying flat, so they need to go through on edge or come apart — which is
+  normal, but it can't be confirmed without their thickness. Add a height to each bed and the
+  check becomes definite.
+
 ### What gets checked
 
 Each piece is continuously checked for:
@@ -36,10 +74,22 @@ Each piece is continuously checked for:
 - **Fixtures** — bath, shower, WC, vanity, linen press, kitchen benches, built-in robes,
   pantry and the shed are all modelled as occupied floor.
 - **Other furniture** — overlaps are flagged.
-- **Doorways** — the narrowest face of the piece is compared against every door on the
-  route from outside to that room. So a wardrobe in Bed 1 is tested against the front
-  door, the hall opening *and* the bedroom door, and you're told which one is tightest
-  and by how many centimetres.
+- **Doorways** — tested against every door on the route from outside to that room, so a
+  wardrobe in Bed 1 is checked against the front door, the hall opening *and* the bedroom
+  door, and you're told which is tightest and by how many centimetres. Where more than one
+  route exists the easiest is used, and if a piece can't come in the front door the app names
+  the way it has to go instead.
+
+  The doorway test reasons in three dimensions, because a piece too wide to go through flat
+  can usually go through on edge: a rigid box clears an opening when its two smallest
+  dimensions fit the opening's width and height (assumed 2040 mm). Give a piece a height and
+  the answer is definite; leave the height off and anything too wide to go flat is flagged as
+  needing to be tilted rather than being called a failure, since without the third dimension
+  it genuinely can't be judged.
+
+Furniture can be **L-shaped** rather than rectangular. Pieces carry a list of `parts`, which
+are collided and drawn individually but move and rotate as one, so an L-couch is tested on
+its real footprint instead of its much larger bounding box.
 
 Optional **walkway clearance** (600/750/900 mm) draws a halo around each piece so you can
 see whether you can still move around the room.

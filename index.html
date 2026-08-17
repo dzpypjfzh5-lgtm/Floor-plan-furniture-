@@ -155,10 +155,7 @@
 <div class="sheet" id="sheetItems">
   <header><h2>Furniture</h2><button class="ghost sheet-close">Done</button></header>
   <div class="body">
-    <div id="sampleBanner" class="banner">
-      These are <b>sample</b> pieces so you can try the tool. Edit their sizes, or delete them and add your own.
-      <div style="margin-top:8px"><button id="clearSamples">Delete all samples</button></div>
-    </div>
+    <div id="assumeBanner" class="banner"></div>
     <div id="itemList"></div>
     <button class="primary" id="addFromSheet" style="width:100%; margin-top:10px">+ Add furniture</button>
   </div>
@@ -246,7 +243,8 @@
     <div class="row" style="margin-top:8px"><div><label>Import file</label><input id="btnImport" type="file" accept="application/json,.json"></div></div>
     <div class="row"><div><label>Or paste JSON</label><input id="pasteJson" placeholder="paste and press enter"></div></div>
     <hr>
-    <button id="btnWipe" class="danger" style="width:100%">Delete all furniture</button>
+    <button id="reloadList" style="width:100%">Reload my furniture list</button>
+    <button id="btnWipe" class="danger" style="width:100%; margin-top:8px">Delete all furniture</button>
   </div>
 </div>
 
@@ -368,16 +366,37 @@ const PLAN = {
   underlayDefault: { mpp: 1/60, x: -452/60, y: -378/60, opacity: 0.55 }
 };
 
-const PALETTE = ["#4f9cf9","#3ecf8e","#f2b544","#f2615c","#a77bf3","#39c2d7","#ef7fb0","#8bbf4c","#e2833c","#6f7ff0"];
+/* No red in here on purpose — red is reserved for "this doesn't fit". */
+const PALETTE = ["#4f9cf9","#3ecf8e","#f2b544","#b3846a","#a77bf3","#39c2d7","#ef7fb0","#8bbf4c","#e2833c","#6f7ff0"];
 
-const SAMPLES = [
-  { name:"Queen bed",     w:1.53, d:2.03, h:1.10, room:"bed1" },
-  { name:"Bedside",       w:0.45, d:0.40, h:0.55, room:"bed1" },
-  { name:"Double wardrobe",w:1.20,d:0.60, h:1.90, room:"bed2" },
-  { name:"3-seat sofa",   w:2.20, d:0.90, h:0.85, room:"living" },
-  { name:"TV unit",       w:1.80, d:0.45, h:0.50, room:"living" },
-  { name:"Dining table",  w:1.60, d:0.90, h:0.75, room:"living" },
-  { name:"Fridge",        w:0.80, d:0.75, h:1.80, room:"kitchen" }
+/* ----------------------------------------------------------------------
+   THE FURNITURE, as measured. Sizes are metres, width × depth on the floor.
+   `count` makes matched pairs. `parts` (local [cx,cy,w,d]) describes a shape
+   that isn't a plain rectangle.
+   ---------------------------------------------------------------------- */
+const FURNITURE = [
+  /* Bed 1 — adults */
+  { name:"Double bed",          w:1.46, d:2.00,             room:"bed1" },
+  { name:"Side table",          w:0.52, d:0.30, count:2,    room:"bed1" },
+  { name:"Chest of drawers",    w:1.09, d:0.52,             room:"bed1" },
+
+  /* Bed 2 — kids */
+  { name:"Single bed",          w:0.98, d:2.05, count:2,    room:"bed2" },
+
+  /* Living / dining */
+  { name:"Couch (L-shape)",     w:3.17, d:1.77,             room:"living",
+    /* 3.17 main run 0.95 deep, with a 0.95-wide return giving 1.77 overall */
+    parts:[[0,-0.410,3.17,0.95],[-1.110,0.475,0.95,0.82]] },
+  { name:"Cube shelf",          w:1.46, d:0.39,             room:"living" },
+  { name:"Bookshelf",           w:0.71, d:0.30, count:2,    room:"living" },
+  { name:"Narrow bookshelf",    w:0.40, d:0.30,             room:"living" },
+  { name:"Cupboard",            w:0.80, d:0.31,             room:"living" },
+  { name:"Kids' chest of drawers", w:1.40, d:0.40,          room:"living" },
+  { name:"Change table",        w:0.87, d:0.58,             room:"living" },
+
+  /* Kitchen */
+  { name:"Fridge",              w:0.70, d:0.70, h:1.72,     room:"kitchen",
+    assumed:"depth assumed 700 mm — only height × width was noted" }
 ];
 
 /* =======================================================================
@@ -396,7 +415,6 @@ const state = {
   units: "cm",
   clearance: 0,
   snap: true,
-  usedSamples: true,
   underlay: Object.assign({}, PLAN.underlayDefault, { visible:false, align:false }),
   view: { x:0, y:0, z:60 }   // z = pixels per metre
 };
@@ -424,7 +442,6 @@ function save(){
     localStorage.setItem(STORE_KEY, JSON.stringify({
       items: state.items, roomDims: state.roomDims, doorW: state.doorW,
       units: state.units, clearance: state.clearance, snap: state.snap,
-      usedSamples: state.usedSamples,
       underlay: { mpp:state.underlay.mpp, x:state.underlay.x, y:state.underlay.y,
                   opacity:state.underlay.opacity, visible:state.underlay.visible }
     }));
@@ -442,7 +459,7 @@ document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState=
 function load(){
   let raw=null;
   try{ raw = localStorage.getItem(STORE_KEY); }catch(e){}
-  if(!raw){ seedSamples(); return; }
+  if(!raw){ seedFurniture(); return; }
   try{
     const d = JSON.parse(raw);
     state.items = (d.items||[]).map(normaliseItem);
@@ -451,10 +468,9 @@ function load(){
     state.units = d.units||"cm";
     state.clearance = d.clearance||0;
     state.snap = d.snap !== false;
-    state.usedSamples = !!d.usedSamples;
     if(d.underlay) Object.assign(state.underlay, d.underlay, {align:false});
     uid = state.items.reduce((a,i)=>Math.max(a, i.id+1), 1);
-  }catch(e){ seedSamples(); }
+  }catch(e){ seedFurniture(); }
   try{
     const img = localStorage.getItem(IMG_KEY);
     if(img) setUnderlayImage(img, false);
@@ -462,21 +478,31 @@ function load(){
 }
 
 function normaliseItem(i){
-  return { id:i.id|0, name:i.name||"Item", w:+i.w||1, d:+i.d||1, h:+i.h||0,
+  const it = { id:i.id|0, name:i.name||"Item", w:+i.w||1, d:+i.d||1, h:+i.h||0,
            x:+i.x||0, y:+i.y||0, a:((+i.a||0)%360+360)%360, color:i.color||PALETTE[0],
-           sample:!!i.sample };
+           note:i.note||"" };
+  if(Array.isArray(i.parts) && i.parts.length) it.parts = i.parts.map(p=>p.map(Number));
+  return it;
 }
 
-function seedSamples(){
-  state.usedSamples = true;
-  SAMPLES.forEach((s,idx)=>{
-    const it = normaliseItem({
-      id: uid++, name:s.name, w:s.w, d:s.d, h:s.h, x:0, y:0,
-      a: 0, color: PALETTE[idx % PALETTE.length], sample:true
-    });
-    state.items.push(it);
-    findSpot(it, s.room);
-  });
+/* Load the measured furniture list, replacing whatever is there. */
+function seedFurniture(){
+  state.items = []; uid = 1;
+  let idx = 0;
+  for(const f of FURNITURE){
+    const n = f.count || 1;
+    for(let k=0; k<n; k++){
+      const it = normaliseItem({
+        id: uid++, name: n>1 ? `${f.name} ${k+1}` : f.name,
+        w:f.w, d:f.d, h:f.h, parts:f.parts, note:f.assumed||"",
+        x:0, y:0, a:0, color: PALETTE[idx % PALETTE.length]
+      });
+      state.items.push(it);
+      /* beds and long pieces read better turned along the room */
+      findSpot(it, f.room);
+    }
+    idx++;
+  }
 }
 
 /* =======================================================================
@@ -538,7 +564,24 @@ function fixtureRects(){
 
 const doorWidth = d => (state.doorW[d.id] != null ? state.doorW[d.id] : d.w);
 
-/* Oriented bounding box for an item, as 4 world-space corners. */
+/* An item is one or more rectangular PARTS, rigidly joined and rotated
+   together. Most furniture is a single part; an L-shaped couch is two, so its
+   real footprint is used instead of its much larger bounding box.
+   Parts are [centreX, centreY, width, depth] in the item's own local space. */
+function itemParts(it){
+  return (it.parts && it.parts.length) ? it.parts : [[0,0,it.w,it.d]];
+}
+function partPolys(it, grow=0){
+  const c=Math.cos(rad(it.a)), s=Math.sin(rad(it.a));
+  return itemParts(it).map(([ox,oy,w,d])=>{
+    const hw=w/2+grow, hd=d/2+grow;
+    return [[-hw,-hd],[hw,-hd],[hw,hd],[-hw,hd]].map(([lx,ly])=>{
+      const px=ox+lx, py=oy+ly;
+      return { x: it.x + px*c - py*s, y: it.y + px*s + py*c };
+    });
+  });
+}
+/* Overall oriented bounding box, for the rotate grip and wall snapping. */
 function corners(it, grow=0){
   const c=Math.cos(rad(it.a)), s=Math.sin(rad(it.a));
   const hw=it.w/2+grow, hd=it.d/2+grow;
@@ -546,6 +589,32 @@ function corners(it, grow=0){
     x: it.x + lx*c - ly*s,
     y: it.y + lx*s + ly*c
   }));
+}
+function anyOverlap(a, b){
+  for(const p of a) for(const q of b) if(overlaps(p,q)) return true;
+  return false;
+}
+function itemBBox(it){
+  let bb=null;
+  for(const p of partPolys(it)){
+    const b=polyBBox(p);
+    bb = bb ? {x0:Math.min(bb.x0,b.x0), y0:Math.min(bb.y0,b.y0), x1:Math.max(bb.x1,b.x1), y1:Math.max(bb.y1,b.y1)} : b;
+  }
+  return bb;
+}
+/* The narrowest cross-section that has to clear a doorway. The piece is rigid,
+   so every part must pass — the binding constraint is the THICKEST part, not
+   the thinnest. For a plain rectangle this is just min(width, depth). */
+function minPassDim(it){
+  let worst = 0;
+  for(const [,,w,d] of itemParts(it)) worst = Math.max(worst, Math.min(w,d));
+  return worst;
+}
+/* Scale an item, carrying its parts with it so an L keeps its shape. */
+function resizeItem(it, w, d){
+  const sx = w/it.w, sy = d/it.d;
+  if(it.parts) it.parts = it.parts.map(([ox,oy,pw,pd])=>[ox*sx, oy*sy, pw*sx, pd*sy]);
+  it.w = w; it.d = d;
 }
 function polyBBox(p){
   let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
@@ -577,17 +646,19 @@ function overlaps(A,B){
    Sampling at 0.1 m beats exact polygon clipping for the effort here. */
 function samplePoints(it, step){
   const c=Math.cos(rad(it.a)), s=Math.sin(rad(it.a));
-  const nx=Math.max(2,Math.ceil(it.w/step)), ny=Math.max(2,Math.ceil(it.d/step));
   const pts=[];
-  for(let i=0;i<=nx;i++) for(let j=0;j<=ny;j++){
-    const lx=-it.w/2 + it.w*i/nx, ly=-it.d/2 + it.d*j/ny;
-    pts.push([it.x + lx*c - ly*s, it.y + lx*s + ly*c]);
+  for(const [ox,oy,w,d] of itemParts(it)){
+    const nx=Math.max(2,Math.ceil(w/step)), ny=Math.max(2,Math.ceil(d/step));
+    for(let i=0;i<=nx;i++) for(let j=0;j<=ny;j++){
+      const px=ox-w/2 + w*i/nx, py=oy-d/2 + d*j/ny;
+      pts.push([it.x + px*c - py*s, it.y + px*s + py*c]);
+    }
   }
   return pts;
 }
 function containingRoom(it){
   const pts = samplePoints(it, 0.1);
-  const bb = polyBBox(corners(it));
+  const bb = itemBBox(it);
   for(const r of PLAN.rooms){
     const rects = roomRects(r);
     const rb = rectsBBox(rects);
@@ -601,8 +672,8 @@ function containingRoom(it){
    FIT ENGINE
    ======================================================================= */
 function checkItem(it){
-  const res = { ok:true, problems:[], warnings:[], room:null, doors:[] };
-  const poly = corners(it);
+  const res = { ok:true, problems:[], warnings:[], room:null, doors:[], via:null };
+  const poly = partPolys(it);
 
   res.room = containingRoom(it);
   if(!res.room){
@@ -612,31 +683,51 @@ function checkItem(it){
   }
 
   for(const f of fixtureRects()){
-    if(overlaps(poly, rectPoly(f.rect))) res.problems.push("Hits the " + f.label.toLowerCase());
+    if(anyOverlap(poly, [rectPoly(f.rect)])) res.problems.push("Hits the " + f.label.toLowerCase());
   }
   for(const other of state.items){
     if(other.id===it.id) continue;
-    if(overlaps(poly, corners(other))) res.problems.push("Overlaps " + other.name);
+    if(anyOverlap(poly, partPolys(other))) res.problems.push("Overlaps " + other.name);
   }
 
-  /* Doorway check: the narrowest face has to clear every door on the route. */
-  const minDim = Math.min(it.w, it.d);
+  /* Doorway check. A piece too wide to go through flat can usually go through
+     on edge, so this needs the third dimension: a rigid box clears an opening
+     when its two smallest dimensions fit the opening's width and height. */
   if(res.room){
     const routes = PLAN.routes[res.room] || [[]];
-    let best=null;
-    for(const route of routes){
-      let worst = { gap: Infinity, door:null };
+    let best=null, firstWorkable=null;
+    routes.forEach((route, ri)=>{
+      let worst = null;
       for(const id of route){
         const d = PLAN.doors.find(x=>x.id===id); if(!d) continue;
-        const gap = doorWidth(d) - minDim;
-        if(gap < worst.gap) worst = { gap, door:d };
+        const f = doorFit(it, d);
+        if(!worst || fitScore(f) < fitScore(worst)) worst = f;
       }
-      if(!best || worst.gap > best.gap) best = worst;
-    }
+      if(!worst) worst = { gap: Infinity, door:null, mode:"flat" };
+      worst.route = route;
+      /* Routes are listed easiest-first (front door before the courtyard
+         slider), so take the first one that genuinely works rather than the
+         one with the most clearance — otherwise every bookshelf claims it
+         has to come in through the slider. */
+      const workable = (worst.mode==="flat" || worst.mode==="edge") && worst.gap >= 0;
+      if(workable && !firstWorkable) firstWorkable = worst;
+      if(!best || fitScore(worst) > fitScore(best)) best = worst;
+    });
+    best = firstWorkable || best;
     if(best && best.door){
       res.doors.push(best);
-      if(best.gap < 0) res.problems.push(`Too wide for the ${best.door.name.toLowerCase()} (${cm(doorWidth(best.door))} cm)`);
-      else if(best.gap < 0.03) res.warnings.push(`Only ${cm(best.gap)} cm spare at the ${best.door.name.toLowerCase()}`);
+      /* If it can't come in the front door, say which way it has to go. */
+      const entry = PLAN.doors.find(x=>x.id===best.route[0]);
+      if(entry && entry.id!=="front") res.via = entry.name;
+      const dn = best.door.name.toLowerCase(), dwcm = cm(doorWidth(best.door));
+      if(best.mode==="fail")
+        res.problems.push(`Won't go through the ${dn} (${dwcm} cm) even on edge`);
+      else if(best.mode==="unknown")
+        res.warnings.push(`Too wide for the ${dn} (${dwcm} cm) lying flat — it has to go on edge or come apart. Add its height to check this properly.`);
+      else if(best.mode==="edge")
+        res.warnings.push(`Only goes through the ${dn} (${dwcm} cm) on edge`);
+      else if(best.gap < 0.03)
+        res.warnings.push(`Only ${cm(best.gap)} cm spare at the ${dn}`);
     }
   }
 
@@ -644,6 +735,32 @@ function checkItem(it){
 
   res.ok = res.problems.length === 0;
   return res;
+}
+
+/* Standard Australian door leaf height. Openings are assumed this tall. */
+const DOOR_HEIGHT = 2.04;
+
+/* Can this piece get through this door, and how?
+     flat    — fits lying flat, the easy case
+     edge    — too wide flat, but its height is small enough to tilt it through
+     fail    — won't go through in any orientation
+     unknown — too wide flat and we have no height, so it can't be judged   */
+function doorFit(it, d){
+  const dw = doorWidth(d);
+  const foot = minPassDim(it);
+  if(foot <= dw) return { door:d, gap: dw-foot, mode:"flat" };
+  if(it.h > 0){
+    const pair = [foot, it.h].sort((a,b)=>a-b);
+    const mode = (pair[0] <= dw && pair[1] <= DOOR_HEIGHT) ? "edge" : "fail";
+    return { door:d, gap: dw-pair[0], mode };
+  }
+  return { door:d, gap: dw-foot, mode:"unknown" };
+}
+/* Rank routes: a hard failure is worse than an unjudgeable one, which is worse
+   than anything that actually fits; ties break on clearance. */
+function fitScore(f){
+  const base = f.mode==="fail" ? -1000 : f.mode==="unknown" ? -100 : 0;
+  return base + Math.min(f.gap, 9);
 }
 
 const checks = new Map();
@@ -659,15 +776,19 @@ function findSpot(it, roomId){
   const r = room(roomId); if(!r) return false;
   const fixes = fixtureRects();
   const rects = roomRects(r).slice().sort((a,b)=>b[2]*b[3]-a[2]*a[3]);
-  const span = Math.max(it.w, it.d)/2;
+  /* Half-extents of the item's footprint at its current angle, so a wide but
+     shallow piece isn't restricted by its long side on both axes. */
+  const probe = Object.assign({}, it, {x:0, y:0});
+  const b0 = itemBBox(probe);
+  const hw = (b0.x1-b0.x0)/2, hd = (b0.y1-b0.y0)/2;
   for(const [x,y,w,h] of rects){
-    if(w < it.w && w < it.d) continue;
-    for(let py=y+span; py<=y+h-span+1e-9; py+=0.1){
-      for(let px=x+span; px<=x+w-span+1e-9; px+=0.1){
+    if(w < hw*2-1e-9 || h < hd*2-1e-9) continue;
+    for(let py=y+hd; py<=y+h-hd+1e-9; py+=0.1){
+      for(let px=x+hw; px<=x+w-hw+1e-9; px+=0.1){
         it.x=px; it.y=py;
-        const poly = corners(it);
-        if(fixes.some(f=>overlaps(poly, rectPoly(f.rect)))) continue;
-        if(state.items.some(o=>o.id!==it.id && overlaps(poly, corners(o)))) continue;
+        const poly = partPolys(it);
+        if(fixes.some(f=>anyOverlap(poly, [rectPoly(f.rect)]))) continue;
+        if(state.items.some(o=>o.id!==it.id && anyOverlap(poly, partPolys(o)))) continue;
         if(containingRoom(it)!==roomId) continue;
         return true;
       }
@@ -805,7 +926,8 @@ function draw(){
   if(state.clearance>0){
     for(const it of state.items){
       ctx.save(); ctx.globalAlpha=0.12; ctx.fillStyle=it.color;
-      pathPoly(corners(it, state.clearance)); ctx.fill(); ctx.restore();
+      for(const p of partPolys(it, state.clearance)){ pathPoly(p); ctx.fill(); }
+      ctx.restore();
     }
   }
 
@@ -813,12 +935,12 @@ function draw(){
   for(const it of state.items){
     const chk = checks.get(it.id);
     const bad = chk && !chk.ok;
-    pathPoly(corners(it));
+    const polys = partPolys(it);
     ctx.fillStyle = it.color + (bad ? "55" : "cc");
-    ctx.fill();
+    for(const p of polys){ pathPoly(p); ctx.fill(); }
     ctx.lineWidth = (state.sel===it.id ? 3 : 1.5);
     ctx.strokeStyle = bad ? getVar("--bad") : (state.sel===it.id ? "#ffffff" : it.color);
-    ctx.stroke();
+    for(const p of polys){ pathPoly(p); ctx.stroke(); }
 
     /* front-edge tick, so which way it faces is readable while rotating */
     if(state.sel===it.id){
@@ -1049,9 +1171,9 @@ cv.addEventListener("wheel", e=>{
 }, {passive:false});
 
 function hitTest(wx,wy){
+  const dot = [[{x:wx-.01,y:wy-.01},{x:wx+.01,y:wy-.01},{x:wx+.01,y:wy+.01},{x:wx-.01,y:wy+.01}]];
   for(let i=state.items.length-1;i>=0;i--){
-    const it=state.items[i];
-    if(overlaps(corners(it), [{x:wx-.01,y:wy-.01},{x:wx+.01,y:wy-.01},{x:wx+.01,y:wy+.01},{x:wx-.01,y:wy+.01}])) return it;
+    if(anyOverlap(partPolys(state.items[i]), dot)) return state.items[i];
   }
   return null;
 }
@@ -1061,7 +1183,7 @@ function snapToWalls(it){
   const off = ((it.a%90)+90)%90;
   if(Math.min(off, 90-off) > 2) return;
   const tol = Math.max(0.06, 10/state.view.z);
-  const bb = polyBBox(corners(it));
+  const bb = itemBBox(it);
   let bestX=null, bestY=null;
   for(const f of allFloorRects()){
     const [x,y,w,h]=f.rect;
@@ -1115,13 +1237,15 @@ function syncInspector(){
     const d=c.doors[0];
     html += `<br>Tightest doorway: ${d.door.name} ${cm(doorWidth(d.door))} cm — ` +
             (d.gap>=0 ? `${cm(d.gap)} cm to spare` : `${cm(-d.gap)} cm too wide`);
+    if(c.via) html += `<br><span style="color:var(--warn)">Won't come in the front door — bring it via the ${c.via.toLowerCase()}.</span>`;
   }
+  if(it.note) html += `<br><span style="color:var(--muted)">${escapeHtml(it.note)}</span>`;
   $("fitmsg").innerHTML = html;
 }
 
 $("ispName").addEventListener("input", e=>{ const it=cur(); if(!it) return; it.name=e.target.value; renderItemList(); draw(); saveSoon(); });
-$("ispW").addEventListener("input", e=>{ const it=cur(), v=U.toM(e.target.value); if(!it||!(v>0)) return; it.w=v; after(it); });
-$("ispD").addEventListener("input", e=>{ const it=cur(), v=U.toM(e.target.value); if(!it||!(v>0)) return; it.d=v; after(it); });
+$("ispW").addEventListener("input", e=>{ const it=cur(), v=U.toM(e.target.value); if(!it||!(v>0)) return; resizeItem(it,v,it.d); after(it); });
+$("ispD").addEventListener("input", e=>{ const it=cur(), v=U.toM(e.target.value); if(!it||!(v>0)) return; resizeItem(it,it.w,v); after(it); });
 $("ispA").addEventListener("input", e=>{ const it=cur(); if(!it) return; const v=parseFloat(e.target.value); if(!isFinite(v)) return; it.a=((v%360)+360)%360; after(it); });
 $("ispRot").addEventListener("input", e=>{ const it=cur(); if(!it) return; it.a=+e.target.value; after(it); });
 $("ispL").onclick = ()=>{ const it=cur(); if(it){ it.a=((it.a-90)%360+360)%360; after(it); } };
@@ -1134,7 +1258,7 @@ $("ispDel").onclick = ()=>{
 };
 $("ispDup").onclick = ()=>{
   const it=cur(); if(!it) return;
-  const copy = normaliseItem(Object.assign({}, it, { id: uid++, x: it.x+0.35, y: it.y+0.35, sample:false }));
+  const copy = normaliseItem(Object.assign({}, it, { id: uid++, x: it.x+0.35, y: it.y+0.35 }));
   state.items.push(copy); select(copy.id); recheck(); renderItemList(); save(); draw();
 };
 const cur = () => state.items.find(i=>i.id===state.sel);
@@ -1162,7 +1286,11 @@ $("zout").onclick = ()=>{ state.view.z=clamp(state.view.z/1.25,8,500); draw(); }
 /* ---------- furniture list ---------- */
 function renderItemList(){
   const host = $("itemList");
-  $("sampleBanner").classList.toggle("hidden", !state.items.some(i=>i.sample));
+  const assumed = state.items.filter(i=>i.note);
+  const ab = $("assumeBanner");
+  ab.classList.toggle("hidden", assumed.length===0);
+  if(assumed.length) ab.innerHTML = "Assumptions worth checking: " +
+    assumed.map(i=>`<b>${escapeHtml(i.name)}</b> — ${escapeHtml(i.note)}`).join("; ") + ".";
   if(!state.items.length){
     host.innerHTML = `<p class="note">Nothing added yet.</p>`;
     return;
@@ -1188,10 +1316,9 @@ function renderItemList(){
     host.appendChild(div);
   }
 }
-$("clearSamples").onclick = ()=>{
-  state.items = state.items.filter(i=>!i.sample);
-  if(state.sel!=null && !state.items.some(i=>i.id===state.sel)) select(null);
-  recheck(); renderItemList(); save(); draw();
+$("reloadList").onclick = ()=>{
+  if(!confirm("Replace everything on the plan with the measured furniture list?")) return;
+  seedFurniture(); select(null); recheck(); renderItemList(); save(); draw(); closeSheets();
 };
 
 /* ---------- add ---------- */
