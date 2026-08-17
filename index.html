@@ -99,6 +99,19 @@
   #insp .hd input{font-weight:600;}
   #insp .btns{display:flex; gap:6px; flex-wrap:wrap;}
   #insp .btns button{flex:1; min-width:64px; padding:9px 6px; font-size:13px;}
+  /* directional nudge pad: ↑ / ← step → / ↓ on a 3-column grid */
+  #nudge{display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin:0 auto 8px; max-width:230px;}
+  #nudge button{padding:10px 0; font-size:16px; line-height:1;}
+  #nudge button:nth-child(1){grid-column:2;}
+  #nudgeStep{font-size:13px; font-weight:600; color:var(--accent);}
+  #nudgeStep small{display:block; font-size:9px; font-weight:400; color:var(--muted);}
+  /* compact selection chip, shown when the panel is set not to auto-open */
+  #selchip{position:absolute; left:8px; bottom:8px; display:none; align-items:center; gap:8px; z-index:20;
+    background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:7px 9px;
+    box-shadow:0 6px 22px rgba(0,0,0,.3); max-width:calc(100% - 76px);}
+  #selchip.open{display:flex;}
+  #selchip b{font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #selchip button{padding:6px 10px; font-size:12px;}
   #fitmsg{font-size:12px; margin-top:8px; color:var(--muted);}
   #fitmsg b{color:var(--text);}
   .hidden{display:none !important;}
@@ -120,6 +133,12 @@
     <button id="zin">+</button>
     <button id="zout">−</button>
   </div>
+  <div id="selchip">
+    <div class="swatch" id="chipSwatch" style="width:18px;height:18px"></div>
+    <b id="chipName"></b>
+    <span class="pill" id="chipFit"></span>
+    <button id="chipEdit">Adjust</button>
+  </div>
   <div id="insp">
     <div class="hd">
       <div class="swatch" id="ispSwatch"></div>
@@ -132,6 +151,13 @@
       <div><label>Angle°</label><input id="ispA" type="number" inputmode="numeric" step="5"></div>
     </div>
     <div style="margin:8px 0"><input id="ispRot" type="range" min="0" max="359" step="1"></div>
+    <div id="nudge">
+      <button data-nx="0" data-ny="-1">↑</button>
+      <button data-nx="-1" data-ny="0">←</button>
+      <button id="nudgeStep" title="Tap to change the step">10<small>mm</small></button>
+      <button data-nx="1" data-ny="0">→</button>
+      <button data-nx="0" data-ny="1">↓</button>
+    </div>
     <div class="btns">
       <button id="ispL">⟲ 90°</button>
       <button id="ispR">⟳ 90°</button>
@@ -235,6 +261,11 @@
       </div>
       <div><label>Snap to walls</label><button id="optSnap" style="width:100%">On</button></div>
     </div>
+    <div class="row">
+      <div><label>Open controls on select</label><button id="optAutoPanel" style="width:100%">On</button></div>
+    </div>
+    <p class="note">Turn this off if the adjustment panel eats too much of the phone screen. Selecting a
+      piece then shows just a small chip with an <b>Adjust</b> button to bring the panel up when you want it.</p>
     <div class="sub">Transfer</div>
     <div class="grid2">
       <button id="btnExport">Export file</button>
@@ -277,72 +308,69 @@ const PLAN = {
   rooms: [
     { id:"bed2",   name:"Bed 2",          kind:"room",    labelled:[4.1,2.7],
       rects:[[0.00,0.00,2.70,4.10]],
-      note:"Printed 4.1 m is the full depth including the robe recess, so the clear floor in front of the robe is about 3.5 m." },
+      note:"Printed 4.1 m is the full depth including the robe recess, so the clear floor in front of the robe is about 3.5 m. Its door is on the EAST wall into the hall lobby — Bed 2 backs straight onto Bed 1, with no corridor between them." },
 
     { id:"bath",   name:"Bath",           kind:"wet",     labelled:null, derived:true,
-      rects:[[2.80,0.00,1.70,3.60]] },
+      rects:[[2.80,0.00,1.70,3.10]] },
 
     { id:"ldry",   name:"L'dry",          kind:"wet",     labelled:null, derived:true,
-      rects:[[4.60,0.00,1.20,3.50]] },
+      rects:[[4.60,0.00,1.20,2.20]] },
 
     { id:"hall",   name:"Hall",           kind:"room",    labelled:null, derived:true,
-      rects:[[0.00,4.20,4.50,1.20],[2.80,3.70,1.70,0.50]],
-      seams:[[2.80,4.20,4.50,4.20]] },
+      rects:[[2.80,3.20,1.70,0.90]],
+      note:"A small lobby, not a corridor: bath above, Bed 1 below, living to the east, and it dead-ends at Bed 2's door on its west side." },
 
     { id:"bed1",   name:"Bed 1",          kind:"room",    labelled:[4.3,3.1],
-      rects:[[0.00,5.50,4.30,3.10]],
+      rects:[[0.00,4.20,4.30,3.10]],
       note:"Printed 4.3 m runs wall to wall including the robe, so the clear floor beside the robe is about 3.7 m." },
 
-    { id:"kitchen",name:"Kitchen",        kind:"room",    labelled:[3.0,2.45],
-      rects:[[4.40,5.50,2.45,3.00]],
-      note:"Printed 2.45 m across leaves a 1.25 m walkway between the two bench runs — the drawing showed this much narrower." },
+    { id:"kitchen",name:"Kitchen",        kind:"room",    labelled:[3.0,2.45], blocked:true,
+      rects:[[4.40,4.90,2.45,3.00]],
+      note:"Blocked out. The fridge is the only thing going in here and it is known to fit, so the benches are not modelled — anything parked here is flagged as clashing. The printed 2.45 m includes the pantry recess." },
 
     { id:"living", name:"Living / Dining",kind:"room",    labelled:[6.05,5.0],
-      rects:[[4.60,3.60,6.05,1.80],[6.95,5.40,3.70,3.20]],
-      seams:[[6.95,5.40,10.65,5.40]],
-      note:"L-shaped, wrapping above and beside the kitchen, and taking in the entry. The printed 6.05 × 5.0 is the overall L." },
+      rects:[[4.60,2.30,6.05,2.50],[6.95,4.80,3.70,2.50]],
+      seams:[[6.95,4.80,10.65,4.80]],
+      note:"L-shaped, wrapping above and beside the kitchen and taking in the entry. The printed 6.05 m runs from the kitchen's west wall across to the east wall." },
 
     { id:"garage", name:"Garage",         kind:"garage",  labelled:[6.0,2.9],
-      rects:[[11.00,2.60,2.90,6.00]] },
+      rects:[[11.00,1.30,2.90,6.00]] },
 
     { id:"court",  name:"Courtyard",      kind:"outdoor", labelled:null, derived:true,
-      rects:[[-2.30,-4.60,11.00,4.60],[-2.30,0.00,2.30,8.60],[5.90,0.00,8.00,2.50],[5.90,2.50,5.00,1.00]],
-      seams:[[-2.30,0.00,0.00,0.00],[5.90,0.00,8.70,0.00],[5.90,2.50,10.90,2.50]],
+      rects:[[-2.30,-4.60,11.00,4.60],[-2.30,0.00,2.30,7.30],[5.90,0.00,8.00,1.20],[5.90,1.20,5.00,1.00]],
+      seams:[[-2.30,0.00,0.00,0.00],[5.90,0.00,8.70,0.00],[5.90,1.20,10.90,1.20]],
       note:"The printed 11.0 × 4.6 is the main paved strip along the north side, built here at exactly that. The paving also wraps down the west side and around to the garage, which the printed figure does not cover." }
   ],
 
   /* Things already taking up floor space. Furniture cannot overlap these. */
   fixtures: [
-    { room:"bed2",   label:"Robe",        rect:[0.00,3.50,1.35,0.60] },
-    { room:"bed1",   label:"Robe",        rect:[3.70,6.60,0.60,1.45] },
+    { room:"bed2",   label:"Robe",        rect:[0.00,3.50,1.30,0.60] },
+    { room:"bed1",   label:"Robe",        rect:[3.70,5.60,0.60,1.40] },
     { room:"bath",   label:"Bath tub",    rect:[2.80,0.00,1.60,0.75] },
     { room:"bath",   label:"WC",          rect:[2.80,0.95,0.45,0.70] },
     { room:"bath",   label:"Vanity",      rect:[3.80,0.90,0.70,0.60] },
-    { room:"bath",   label:"Shower",      rect:[2.80,2.50,0.90,0.90] },
-    { room:"bath",   label:"Linen",       rect:[3.60,3.00,0.90,0.60] },
+    { room:"bath",   label:"Shower",      rect:[2.80,2.10,0.90,0.90] },
+    { room:"bath",   label:"Linen",       rect:[3.60,2.50,0.90,0.60] },
     { room:"ldry",   label:"Tub / washer",rect:[4.60,0.00,0.65,0.70] },
-    { room:"kitchen",label:"Bench",       rect:[4.40,5.50,0.60,3.00] },
-    { room:"kitchen",label:"Bench",       rect:[6.25,6.10,0.60,2.40] },
-    { room:"living", label:"Pantry",      rect:[6.95,5.40,0.50,1.00] },
-    { room:"court",  label:"Shed",        rect:[12.00,0.30,1.75,0.80] }
+    { room:"court",  label:"Shed",        rect:[12.00,0.20,1.75,0.80] }
   ],
 
   /* Doors & openings, drawn on the centreline of the wall they pierce.
      `w` is the clear opening width in metres. All widths are ESTIMATES from
      standard sizes — these are the first thing worth measuring. */
   doors: [
-    { id:"front",   name:"Front entry door",      seg:[9.00,8.60, 9.90,8.60], w:0.90, rooms:["living","out"],    type:"external" },
-    { id:"slider",  name:"Living sliding door",   seg:[7.00,3.55, 8.60,3.55], w:1.60, rooms:["living","court"],  type:"slider" },
-    { id:"bed1d",   name:"Bed 1 door",            seg:[3.30,5.45, 4.12,5.45], w:0.82, rooms:["bed1","hall"],     type:"door" },
-    { id:"bed2d",   name:"Bed 2 door",            seg:[1.80,4.15, 2.62,4.15], w:0.82, rooms:["bed2","hall"],     type:"door" },
-    { id:"bathd",   name:"Bath door",             seg:[2.90,3.65, 3.67,3.65], w:0.77, rooms:["bath","hall"],     type:"door" },
-    { id:"halll",   name:"Hall / living opening", seg:[4.55,4.40, 4.55,5.20], w:0.80, rooms:["hall","living"],   type:"opening" },
-    { id:"ldryd",   name:"Laundry door",          seg:[4.70,3.55, 5.47,3.55], w:0.77, rooms:["ldry","living"],   type:"door" },
+    { id:"front",   name:"Front entry door",      seg:[8.20,7.30, 9.10,7.30], w:0.90, rooms:["living","out"],    type:"external" },
+    { id:"slider",  name:"Living sliding door",   seg:[7.00,2.25, 8.60,2.25], w:1.60, rooms:["living","court"],  type:"slider" },
+    { id:"bed2d",   name:"Bed 2 door",            seg:[2.75,3.20, 2.75,4.02], w:0.82, rooms:["bed2","hall"],     type:"door" },
+    { id:"bed1d",   name:"Bed 1 door",            seg:[3.30,4.15, 4.12,4.15], w:0.82, rooms:["bed1","hall"],     type:"door" },
+    { id:"bathd",   name:"Bath door",             seg:[2.90,3.15, 3.67,3.15], w:0.77, rooms:["bath","hall"],     type:"door" },
+    { id:"halll",   name:"Hall / living opening", seg:[4.55,3.20, 4.55,4.10], w:0.90, rooms:["hall","living"],   type:"opening" },
+    { id:"ldryd",   name:"Laundry door",          seg:[4.70,2.25, 5.47,2.25], w:0.77, rooms:["ldry","living"],   type:"door" },
     { id:"ldryx",   name:"Laundry rear door",     seg:[4.90,0.00, 5.60,0.00], w:0.70, rooms:["ldry","court"],    type:"external" },
-    { id:"kitchn",  name:"Kitchen north opening", seg:[5.00,5.45, 5.90,5.45], w:0.90, rooms:["kitchen","living"],type:"opening" },
-    { id:"kitche",  name:"Kitchen east opening",  seg:[6.90,7.60, 6.90,8.50], w:0.90, rooms:["kitchen","living"],type:"opening" },
-    { id:"garped",  name:"Garage side door",      seg:[11.10,2.55,11.92,2.55],w:0.82, rooms:["garage","court"],  type:"door" },
-    { id:"garroll", name:"Garage roller door",    seg:[11.20,8.60,13.60,8.60],w:2.40, rooms:["garage","out"],    type:"roller" }
+    { id:"kitchn",  name:"Kitchen north opening", seg:[5.00,4.85, 5.90,4.85], w:0.90, rooms:["kitchen","living"],type:"opening" },
+    { id:"kitche",  name:"Kitchen east opening",  seg:[6.90,6.30, 6.90,7.20], w:0.90, rooms:["kitchen","living"],type:"opening" },
+    { id:"garped",  name:"Garage side door",      seg:[11.10,1.25,11.92,1.25],w:0.82, rooms:["garage","court"],  type:"door" },
+    { id:"garroll", name:"Garage roller door",    seg:[11.20,7.30,13.60,7.30],w:2.40, rooms:["garage","out"],    type:"roller" }
   ],
 
   /* How you actually get a piece of furniture into each room from outside.
@@ -360,10 +388,10 @@ const PLAN = {
     court:   [[]]
   },
 
-  /* Starting alignment for the original scanned plan. Because the model is built
-     to the printed dimensions rather than to the drawing, no single scale can
-     match the image everywhere — this just gets it close enough to nudge. */
-  underlayDefault: { mpp: 1/60, x: -452/60, y: -378/60, opacity: 0.55 }
+  /* Starting alignment for the original scanned plan: 67 px per metre with the
+     inside NW corner of Bed 2 at pixel (447, 372). The model now follows the
+     drawing's own geometry, so this should line up closely. */
+  underlayDefault: { mpp: 1/67, x: -447/67, y: -372/67, opacity: 0.55 }
 };
 
 /* No red in here on purpose — red is reserved for "this doesn't fit". */
@@ -393,10 +421,16 @@ const FURNITURE = [
   { name:"Cupboard",            w:0.80, d:0.31,             room:"living" },
   { name:"Kids' chest of drawers", w:1.40, d:0.40,          room:"living" },
   { name:"Change table",        w:0.87, d:0.58,             room:"living" },
+  { name:"Dining table",        w:1.53, d:0.82,             room:"living" },
+  { name:"Bookshelf (airlock)", w:0.97, d:0.29,             room:"living" },
+  { name:"Bookshelf (changing space)", w:0.90, d:0.28,      room:"living" },
 
-  /* Kitchen */
-  { name:"Fridge",              w:0.70, d:0.70, h:1.72,     room:"kitchen",
-    assumed:"depth assumed 700 mm — only height × width was noted" }
+  /* Hangs from a single ceiling point and swings through a hemisphere of
+     1.5 m radius, so on the floor it needs a clear 3.0 m circle. It is a
+     clearance zone rather than a carried object: `virtual` skips the doorway
+     check, since the fabric packs into a bag. */
+  { name:"Fabric swing (3.0 m swing circle)", circle:1.50, virtual:true, room:"living",
+    assumed:"1.5 m radius measured from the ceiling carabiner, per your note" }
 ];
 
 /* =======================================================================
@@ -404,6 +438,7 @@ const FURNITURE = [
    ======================================================================= */
 /* v2: the plan was re-laid to the printed dimensions, so v1 room overrides
    and saved positions no longer mean the same thing. */
+const NUDGE_STEPS_OK = v => [10,50,100].includes(v);
 const STORE_KEY = "floorplan-planner-v2";
 const IMG_KEY   = "floorplan-planner-img-v1";
 
@@ -415,6 +450,8 @@ const state = {
   units: "cm",
   clearance: 0,
   snap: true,
+  autoPanel: true,
+  nudge: 10,
   underlay: Object.assign({}, PLAN.underlayDefault, { visible:false, align:false }),
   view: { x:0, y:0, z:60 }   // z = pixels per metre
 };
@@ -442,6 +479,7 @@ function save(){
     localStorage.setItem(STORE_KEY, JSON.stringify({
       items: state.items, roomDims: state.roomDims, doorW: state.doorW,
       units: state.units, clearance: state.clearance, snap: state.snap,
+      autoPanel: state.autoPanel, nudge: state.nudge,
       underlay: { mpp:state.underlay.mpp, x:state.underlay.x, y:state.underlay.y,
                   opacity:state.underlay.opacity, visible:state.underlay.visible }
     }));
@@ -468,6 +506,8 @@ function load(){
     state.units = d.units||"cm";
     state.clearance = d.clearance||0;
     state.snap = d.snap !== false;
+    state.autoPanel = d.autoPanel !== false;
+    if(NUDGE_STEPS_OK(d.nudge)) state.nudge = d.nudge;
     if(d.underlay) Object.assign(state.underlay, d.underlay, {align:false});
     uid = state.items.reduce((a,i)=>Math.max(a, i.id+1), 1);
   }catch(e){ seedFurniture(); }
@@ -482,6 +522,8 @@ function normaliseItem(i){
            x:+i.x||0, y:+i.y||0, a:((+i.a||0)%360+360)%360, color:i.color||PALETTE[0],
            note:i.note||"" };
   if(Array.isArray(i.parts) && i.parts.length) it.parts = i.parts.map(p=>p.map(Number));
+  if(+i.circle > 0){ it.circle = +i.circle; it.w = it.d = it.circle*2; }
+  if(i.virtual) it.virtual = true;
   return it;
 }
 
@@ -494,12 +536,11 @@ function seedFurniture(){
     for(let k=0; k<n; k++){
       const it = normaliseItem({
         id: uid++, name: n>1 ? `${f.name} ${k+1}` : f.name,
-        w:f.w, d:f.d, h:f.h, parts:f.parts, note:f.assumed||"",
-        x:0, y:0, a:0, color: PALETTE[idx % PALETTE.length]
+        w:f.w, d:f.d, h:f.h, parts:f.parts, circle:f.circle, virtual:f.virtual,
+        note:f.assumed||"", x:0, y:0, a:0, color: PALETTE[idx % PALETTE.length]
       });
       state.items.push(it);
-      /* beds and long pieces read better turned along the room */
-      findSpot(it, f.room);
+      placeItem(it, f.room);
     }
     idx++;
   }
@@ -571,7 +612,20 @@ const doorWidth = d => (state.doorW[d.id] != null ? state.doorW[d.id] : d.w);
 function itemParts(it){
   return (it.parts && it.parts.length) ? it.parts : [[0,0,it.w,it.d]];
 }
+/* A round item (the ceiling swing's swept circle) is treated as a regular
+   polygon so the same convex SAT handles it. 32 sides keeps the error under
+   half a percent of the radius, which is far finer than any measurement here. */
+const CIRCLE_SIDES = 32;
+function circlePoly(it, grow=0){
+  const r = it.circle + grow, out = [];
+  for(let i=0;i<CIRCLE_SIDES;i++){
+    const t = i/CIRCLE_SIDES * Math.PI*2;
+    out.push({ x: it.x + Math.cos(t)*r, y: it.y + Math.sin(t)*r });
+  }
+  return out;
+}
 function partPolys(it, grow=0){
+  if(it.circle) return [circlePoly(it, grow)];
   const c=Math.cos(rad(it.a)), s=Math.sin(rad(it.a));
   return itemParts(it).map(([ox,oy,w,d])=>{
     const hw=w/2+grow, hd=d/2+grow;
@@ -606,12 +660,14 @@ function itemBBox(it){
    so every part must pass — the binding constraint is the THICKEST part, not
    the thinnest. For a plain rectangle this is just min(width, depth). */
 function minPassDim(it){
+  if(it.circle) return it.circle*2;
   let worst = 0;
   for(const [,,w,d] of itemParts(it)) worst = Math.max(worst, Math.min(w,d));
   return worst;
 }
 /* Scale an item, carrying its parts with it so an L keeps its shape. */
 function resizeItem(it, w, d){
+  if(it.circle){ it.circle = Math.max(w,d)/2; it.w = it.d = it.circle*2; return; }
   const sx = w/it.w, sy = d/it.d;
   if(it.parts) it.parts = it.parts.map(([ox,oy,pw,pd])=>[ox*sx, oy*sy, pw*sx, pd*sy]);
   it.w = w; it.d = d;
@@ -645,8 +701,18 @@ function overlaps(A,B){
    right semantics (furniture belongs to a room) and a correct wall test.
    Sampling at 0.1 m beats exact polygon clipping for the effort here. */
 function samplePoints(it, step){
-  const c=Math.cos(rad(it.a)), s=Math.sin(rad(it.a));
   const pts=[];
+  if(it.circle){
+    const r=it.circle;
+    for(let gx=-r; gx<=r+1e-9; gx+=step) for(let gy=-r; gy<=r+1e-9; gy+=step)
+      if(gx*gx+gy*gy <= r*r+1e-9) pts.push([it.x+gx, it.y+gy]);
+    for(let i=0;i<CIRCLE_SIDES;i++){
+      const t=i/CIRCLE_SIDES*Math.PI*2;
+      pts.push([it.x+Math.cos(t)*r, it.y+Math.sin(t)*r]);
+    }
+    return pts;
+  }
+  const c=Math.cos(rad(it.a)), s=Math.sin(rad(it.a));
   for(const [ox,oy,w,d] of itemParts(it)){
     const nx=Math.max(2,Math.ceil(w/step)), ny=Math.max(2,Math.ceil(d/step));
     for(let i=0;i<=nx;i++) for(let j=0;j<=ny;j++){
@@ -680,6 +746,9 @@ function checkItem(it){
     const near = roomAt(it.x, it.y);
     res.problems.push(near ? "Crosses a wall" : "Not inside any room");
     res.near = near;
+  }else{
+    const rm = room(res.room);
+    if(rm && rm.blocked) res.problems.push(`${rm.name} is blocked out — parked here, not placed`);
   }
 
   for(const f of fixtureRects()){
@@ -692,8 +761,9 @@ function checkItem(it){
 
   /* Doorway check. A piece too wide to go through flat can usually go through
      on edge, so this needs the third dimension: a rigid box clears an opening
-     when its two smallest dimensions fit the opening's width and height. */
-  if(res.room){
+     when its two smallest dimensions fit the opening's width and height.
+     Skipped for clearance zones like the swing, which aren't carried objects. */
+  if(res.room && !it.virtual){
     const routes = PLAN.routes[res.room] || [[]];
     let best=null, firstWorkable=null;
     routes.forEach((route, ri)=>{
@@ -799,6 +869,26 @@ function findSpot(it, roomId){
   return false;
 }
 
+/* Put an item in its intended room; if nothing there can take it, park it in
+   the roomiest space that can and say so on the piece, rather than dumping it
+   on top of something and leaving you to work out why. */
+function placeItem(it, preferred){
+  if(findSpot(it, preferred)) return true;
+  const others = PLAN.rooms
+    .filter(r=>r.id!==preferred && !r.blocked)
+    .sort((a,b)=>roomArea(b)-roomArea(a));
+  for(const r of others){
+    if(findSpot(it, r.id)){
+      const want = room(preferred);
+      it.note = `Doesn't fit in the ${want?want.name:preferred} — parked in the ${r.name}.` +
+                (it.note ? " " + it.note : "");
+      return true;
+    }
+  }
+  findSpot(it, preferred);
+  return false;
+}
+
 /* =======================================================================
    CANVAS + RENDER
    ======================================================================= */
@@ -866,6 +956,22 @@ function draw(){
   for(const r of PLAN.rooms){
     ctx.fillStyle = roomFill(r.kind);
     for(const [x,y,w,h] of roomRects(r)) ctx.fillRect(S.x(x), S.y(y), w*z, h*z);
+    /* a blocked room gets diagonal hatching so it reads as unavailable */
+    if(r.blocked){
+      ctx.save();
+      ctx.beginPath();
+      for(const [x,y,w,h] of roomRects(r)) ctx.rect(S.x(x), S.y(y), w*z, h*z);
+      ctx.clip();
+      ctx.strokeStyle = "#c3ccda"; ctx.lineWidth = Math.max(1, 0.02*z);
+      const bb = rectsBBox(roomRects(r)), step = Math.max(8, 0.28*z);
+      for(let d0 = -(bb.h)*z; d0 < bb.w*z + bb.h*z; d0 += step){
+        ctx.beginPath();
+        ctx.moveTo(S.x(bb.x)+d0, S.y(bb.y));
+        ctx.lineTo(S.x(bb.x)+d0+bb.h*z, S.y(bb.y)+bb.h*z);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
   }
 
   /* --- walls --- */
@@ -936,11 +1042,27 @@ function draw(){
     const chk = checks.get(it.id);
     const bad = chk && !chk.ok;
     const polys = partPolys(it);
-    ctx.fillStyle = it.color + (bad ? "55" : "cc");
-    for(const p of polys){ pathPoly(p); ctx.fill(); }
     ctx.lineWidth = (state.sel===it.id ? 3 : 1.5);
-    ctx.strokeStyle = bad ? getVar("--bad") : (state.sel===it.id ? "#ffffff" : it.color);
-    for(const p of polys){ pathPoly(p); ctx.stroke(); }
+    const stroke = bad ? getVar("--bad") : (state.sel===it.id ? "#ffffff" : it.color);
+    if(it.circle){
+      /* A swept clearance zone, not a solid object: draw it hollow and dashed
+         with the ceiling anchor marked, so it reads as space rather than mass. */
+      ctx.beginPath(); ctx.arc(S.x(it.x), S.y(it.y), it.circle*z, 0, Math.PI*2);
+      ctx.fillStyle = it.color + (bad ? "33" : "44"); ctx.fill();
+      ctx.setLineDash([8,6]); ctx.strokeStyle = stroke; ctx.stroke(); ctx.setLineDash([]);
+      const cr = Math.max(3, 0.07*z);
+      ctx.beginPath(); ctx.arc(S.x(it.x), S.y(it.y), cr, 0, Math.PI*2);
+      ctx.fillStyle = stroke; ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(S.x(it.x)-cr*2.2, S.y(it.y)); ctx.lineTo(S.x(it.x)+cr*2.2, S.y(it.y));
+      ctx.moveTo(S.x(it.x), S.y(it.y)-cr*2.2); ctx.lineTo(S.x(it.x), S.y(it.y)+cr*2.2);
+      ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke();
+    }else{
+      ctx.fillStyle = it.color + (bad ? "55" : "cc");
+      for(const p of polys){ pathPoly(p); ctx.fill(); }
+      ctx.strokeStyle = stroke;
+      for(const p of polys){ pathPoly(p); ctx.stroke(); }
+    }
 
     /* front-edge tick, so which way it faces is readable while rotating */
     if(state.sel===it.id){
@@ -1134,7 +1256,7 @@ cv.addEventListener("pointermove", e=>{
     if(state.snap) snapToWalls(it);
     drag.moved=true;
     checks.set(it.id, checkItem(it));
-    syncInspector(); draw(); return;
+    syncInspector(); syncChip(); draw(); return;
   }
   if(drag.mode==="rotate"){
     const it=drag.it;
@@ -1178,15 +1300,22 @@ function hitTest(wx,wy){
   return null;
 }
 
-/* Flush an axis-aligned item against nearby walls. */
+/* Flush an axis-aligned item against the walls of the room it is in.
+   Snapping against EVERY room's rects was the cause of the vertical "bumpers":
+   with 0.10 m walls, the neighbouring room's face is only 0.10 m away, so the
+   nearest edge was often on the far side of the wall and the piece settled a
+   wall-thickness short of the one you were pushing it against. */
 function snapToWalls(it){
   const off = ((it.a%90)+90)%90;
   if(Math.min(off, 90-off) > 2) return;
   const tol = Math.max(0.06, 10/state.view.z);
   const bb = itemBBox(it);
+  const rid = containingRoom(it) || roomAt(it.x, it.y);
+  const r = rid && room(rid);
+  if(!r) return;
   let bestX=null, bestY=null;
-  for(const f of allFloorRects()){
-    const [x,y,w,h]=f.rect;
+  for(const rect of roomRects(r)){
+    const [x,y,w,h]=rect;
     for(const val of [x, x+w]){
       if(Math.abs(bb.x0-val)<tol && (bestX===null||Math.abs(bb.x0-val)<Math.abs(bestX))) bestX = val-bb.x0;
       if(Math.abs(bb.x1-val)<tol && (bestX===null||Math.abs(bb.x1-val)<Math.abs(bestX))) bestX = val-bb.x1;
@@ -1205,14 +1334,50 @@ function snapToWalls(it){
    ======================================================================= */
 const $ = id => document.getElementById(id);
 
-function select(id){
+function select(id, forcePanel){
   state.sel = id;
   const it = state.items.find(i=>i.id===id);
-  $("insp").classList.toggle("open", !!it);
-  if(it) syncInspector();
+  const panel = !!it && (state.autoPanel || forcePanel === true || $("insp").classList.contains("open"));
+  $("insp").classList.toggle("open", panel);
+  $("selchip").classList.toggle("open", !!it && !panel);
+  if(it){ syncInspector(); syncChip(); }
   renderItemList();
   draw();
 }
+function syncChip(){
+  const it = state.items.find(i=>i.id===state.sel); if(!it) return;
+  const c = checks.get(it.id) || checkItem(it);
+  $("chipSwatch").style.background = it.color;
+  $("chipName").textContent = it.name;
+  const fit = $("chipFit");
+  fit.textContent = c.ok ? (c.warnings.length ? "tight" : "fits") : "problem";
+  fit.className = "pill " + (c.ok ? (c.warnings.length ? "warn" : "ok") : "bad");
+}
+$("chipEdit").onclick = ()=>{
+  $("selchip").classList.remove("open");
+  $("insp").classList.add("open");
+  syncInspector();
+};
+
+/* --- directional nudge ------------------------------------------------ */
+const NUDGE_STEPS = [10, 50, 100];   // millimetres
+function syncNudge(){
+  $("nudgeStep").innerHTML = state.nudge + "<small>mm</small>";
+}
+$("nudgeStep").onclick = ()=>{
+  const i = NUDGE_STEPS.indexOf(state.nudge);
+  state.nudge = NUDGE_STEPS[(i+1) % NUDGE_STEPS.length];
+  syncNudge(); save();
+};
+document.querySelectorAll("#nudge button[data-nx]").forEach(b=>{
+  b.onclick = ()=>{
+    const it = cur(); if(!it) return;
+    const step = state.nudge/1000;
+    it.x += (+b.dataset.nx)*step;
+    it.y += (+b.dataset.ny)*step;
+    after(it);   /* deliberately no wall snapping — nudge is for fine control */
+  };
+});
 
 function syncInspector(){
   const it = state.items.find(i=>i.id===state.sel); if(!it) return;
@@ -1262,7 +1427,7 @@ $("ispDup").onclick = ()=>{
   state.items.push(copy); select(copy.id); recheck(); renderItemList(); save(); draw();
 };
 const cur = () => state.items.find(i=>i.id===state.sel);
-function after(it){ checks.set(it.id, checkItem(it)); syncInspector(); renderItemList(); draw(); saveSoon(); }
+function after(it){ checks.set(it.id, checkItem(it)); syncInspector(); syncChip(); renderItemList(); draw(); saveSoon(); }
 
 /* =======================================================================
    SHEETS
@@ -1466,10 +1631,17 @@ function syncOptions(){
   $("optClear").value = String(state.clearance);
   $("optSnap").textContent = state.snap ? "On" : "Off";
   $("optSnap").classList.toggle("on", state.snap);
+  $("optAutoPanel").textContent = state.autoPanel ? "On" : "Off";
+  $("optAutoPanel").classList.toggle("on", state.autoPanel);
 }
 $("optUnits").addEventListener("change", e=>{ state.units=e.target.value; syncInspector(); renderItemList(); save(); });
 $("optClear").addEventListener("change", e=>{ state.clearance=parseFloat(e.target.value)||0; save(); draw(); });
 $("optSnap").onclick = ()=>{ state.snap=!state.snap; syncOptions(); save(); };
+$("optAutoPanel").onclick = ()=>{
+  state.autoPanel = !state.autoPanel;
+  syncOptions(); save();
+  if(state.sel != null) select(state.sel, state.autoPanel);
+};
 
 function exportPayload(){
   return JSON.stringify({
@@ -1527,6 +1699,7 @@ fitView();
 recheck();
 renderItemList();
 syncOptions();
+syncNudge();
 syncUnderlayUI();
 draw();
 </script>
