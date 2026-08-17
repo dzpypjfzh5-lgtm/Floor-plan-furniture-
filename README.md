@@ -154,11 +154,10 @@ Several printed figures still need reading carefully, and the app says so on eac
 - **The kitchen is a blocked zone.** The fridge is the only thing going in there and it's
   known to fit, so the benches aren't modelled. It's drawn hatched, and furniture can be
   parked there as a holding space but is flagged as clashing.
-- **The kitchen has one door**, at its north-west corner onto the dining end — the drawing
-  shows a single swing there, and the pantry takes up the east side, so it isn't an
-  open-ended galley. Position is good to about ±0.3 m off the scan. Since the kitchen is
-  blocked and no route to any other room passes through it, this door doesn't affect any fit
-  result; it's there for the drawing.
+- **The kitchen has one sliding door, dead centre of its north wall** onto the dining end
+  (confirmed, not traced). The kitchen runs 4.40–6.85 across, so the door is centred on 5.625.
+  Since the kitchen is blocked and no route to any other room passes through it, this door
+  doesn't affect any fit result; it's there for the drawing.
 
 Rooms with **no** printed dimension — bath, laundry, hall, and the wrap-around paving — carry
 no advertised size, so they absorb the slack and are marked *"sized to fit"* in the app.

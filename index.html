@@ -367,11 +367,9 @@ const PLAN = {
     { id:"halll",   name:"Hall / living opening", seg:[4.55,3.20, 4.55,4.10], w:0.90, rooms:["hall","living"],   type:"opening" },
     { id:"ldryd",   name:"Laundry door",          seg:[4.70,2.25, 5.47,2.25], w:0.77, rooms:["ldry","living"],   type:"door" },
     { id:"ldryx",   name:"Laundry rear door",     seg:[4.90,0.00, 5.60,0.00], w:0.70, rooms:["ldry","court"],    type:"external" },
-    /* The drawing shows a single door swing at the kitchen's north-west corner,
-       distinct from Bed 1's swing further north-west, and the pantry occupies
-       the east side — so one door at the dining end, not an open-ended galley.
-       Position is good to roughly ±0.3 m off the scan. */
-    { id:"kitchd",  name:"Kitchen door",          seg:[4.60,4.85, 5.42,4.85], w:0.82, rooms:["kitchen","living"],type:"door" },
+    /* Sliding door, centred on the kitchen's north wall (confirmed, not traced).
+       The kitchen runs x 4.40→6.85, so its midpoint is 5.625. */
+    { id:"kitchd",  name:"Kitchen sliding door",  seg:[5.215,4.85, 6.035,4.85], w:0.82, rooms:["kitchen","living"],type:"slider" },
     { id:"garped",  name:"Garage side door",      seg:[11.10,1.25,11.92,1.25],w:0.82, rooms:["garage","court"],  type:"door" },
     { id:"garroll", name:"Garage roller door",    seg:[11.20,7.30,13.60,7.30],w:2.40, rooms:["garage","out"],    type:"roller" }
   ],
@@ -1015,6 +1013,19 @@ function draw(){
 
     ctx.strokeStyle = "#9aa7b8"; ctx.lineWidth = Math.max(1, 0.025*z);
     ctx.beginPath(); ctx.moveTo(S.x(x1),S.y(y1)); ctx.lineTo(S.x(x2),S.y(y2)); ctx.stroke();
+
+    /* A slider gets its leaf drawn parked alongside the opening, so it reads
+       as sliding rather than swinging. */
+    if(d.type==="slider" && z > 22){
+      const len = Math.hypot(x2-x1, y2-y1) || 1;
+      const px = -(y2-y1)/len, py = (x2-x1)/len;   // unit perpendicular
+      const off = 0.07;
+      ctx.strokeStyle = "#7c8899"; ctx.lineWidth = Math.max(1.5, 0.04*z);
+      ctx.beginPath();
+      ctx.moveTo(S.x(x1+px*off), S.y(y1+py*off));
+      ctx.lineTo(S.x(x2+px*off), S.y(y2+py*off));
+      ctx.stroke();
+    }
   }
 
   /* --- room labels --- */
