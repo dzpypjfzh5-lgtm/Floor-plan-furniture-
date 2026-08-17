@@ -1,7 +1,7 @@
 # Furniture planner
 
 A single-file tool for working out whether your furniture fits before moving day.
-Drag pieces around a to-scale plan of the unit, rotate them, edit their sizes, and
+Drag pieces around a to-scale plan of a two-bedroom unit, rotate them, edit their sizes, and
 get told when something crosses a wall, lands on the bath, or won't go through a door.
 
 Everything lives in **`index.html`**. No build step, no dependencies, no network calls.
