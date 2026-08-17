@@ -46,38 +46,55 @@ see whether you can still move around the room.
 
 ## About the plan itself
 
-The geometry is traced from the marketing marketing floor plan at roughly 67 px per metre,
-with the building's north-west corner as the origin. **Treat every number as approximate
-until you've put a tape measure on it.** The tool is built around that caveat:
+The model is **dimension-driven**. Every room the plan puts a number on is built at exactly
+that number, because those figures come from someone measuring and are what the property is
+advertised as. The drawing is used only for *topology* — which room adjoins which, and where
+the doors sit.
 
-- Every room size and every door width is editable under **Rooms**.
-- Where the drawing and the printed dimension disagree, the printed one is shown as a
-  "plan says" chip so you can see the discrepancy rather than trusting one silently.
+That decision came from tracing the drawing first and finding it short almost everywhere:
 
-Known discrepancies between the drawing and the printed dimensions:
-
-| Room | Traced | Plan prints | Why |
+| Room | Plan prints (built) | Drawing traced | Short by |
 |---|---|---|---|
-| Bed 1 | 4.20 × 2.85 | 4.3 × 3.1 | Printed length includes the built-in robe |
-| Bed 2 | 3.85 × 2.70 | 4.1 × 2.7 | Printed length includes the robe recess |
-| Living / Dining | 5.70 × 4.90 | 6.05 × 5.0 | Printed length runs ~0.35 m longer than the drawing |
-| Kitchen | 2.85 × 1.70 | 3.0 × 2.45 | Printed width appears to measure through to the dining side |
-| Garage | 5.85 × 2.70 | 6.0 × 2.9 | Rounding |
-| Courtyard | wraps the north and west sides | 11.0 × 4.6 | The printed figure is the main strip along the top only |
+| Kitchen | 3.0 × 2.45 | 2.85 × 1.70 | **0.75 m** across |
+| Living / Dining | 6.05 × 5.0 | 5.70 × 4.90 | 0.35 m |
+| Bed 1 | 4.3 × 3.1 | 4.20 × 2.85 | 0.25 m |
+| Bed 2 | 4.1 × 2.7 | 3.85 × 2.70 | 0.25 m |
+| Garage | 6.0 × 2.9 | 5.85 × 2.70 | 0.20 m |
+
+The kitchen settled it: traced at 1.70 m across, two 600 mm bench runs would leave a 500 mm
+walkway, which is not a real kitchen. At the printed 2.45 m the walkway is 1.25 m and a
+standard fridge fits between the benches. The bias is consistent and one-directional, which
+is what you'd expect from a sketch drawn slightly tight rather than from measurement error.
+
+Two printed figures need reading carefully, and the app says so on each room:
+
+- **Bed 1 (4.3) and Bed 2 (4.1)** include the built-in robe recess. Clear floor is about
+  3.7 m and 3.5 m respectively — the robes are modelled as occupied floor, so the fit checks
+  already account for this.
+- **Courtyard 11.0 × 4.6** is the main paved strip along the north side, built at exactly
+  that. The paving also wraps down the west side and around toward the garage, which the
+  printed figure doesn't cover.
+
+Rooms with **no** printed dimension — bath, laundry, hall, and the wrap-around paving — carry
+no advertised size, so they absorb the slack and are marked *"sized to fit"* in the app.
+They're the least reliable numbers here. The hall in particular is pinned by arithmetic:
+Bed 2 (4.1) + Bed 1 (3.1) plus walls leaves about 1.2 m for it.
 
 **Door widths are estimates**, not measurements — standard 820 mm internal doors, 900 mm
 front door, 770 mm to the wet areas. These drive the "will it fit through" check, so they
-are the first thing worth measuring properly.
+are the first thing worth measuring properly. All are editable under **Rooms**, as is every
+room size.
 
 Resizing a room stretches that room and its fixtures only; it does not push the neighbouring
 rooms out of the way, so a large change will make rooms overlap on screen.
 
-### Checking the trace against the original
+### Comparing against the original drawing
 
 Under **Image** you can load the original marketing floor plan as a background underlay, set its
-opacity, and drag/pinch it into alignment to see how well the traced walls match. The
-default alignment already matches the original export, so it should line up immediately.
-The image is stored on your device only.
+opacity, and drag/pinch it into alignment. Because the model is built to the printed
+dimensions rather than to the drawing, **it will not line up perfectly** — no single scale
+can, given the drawing runs short by varying amounts. Use it to sanity-check the layout, not
+the sizes. The image is stored on your device only.
 
 ## Development
 
@@ -88,4 +105,6 @@ python3 -m http.server 8899
 ```
 
 The plan model — rooms, fixtures, doors and the routes used for the doorway check — is the
-`PLAN` object at the top of the `<script>` block. Coordinates are metres, x east, y south.
+`PLAN` object at the top of the `<script>` block. Coordinates are metres, x east, y south;
+room rects are inside wall faces, with 0.10 m between rooms, so a printed dimension is the
+clear internal size. Origin is the inside face of Bed 2's north-west corner.
