@@ -43,6 +43,15 @@
   #top{display:flex; gap:8px; align-items:center; padding:8px 10px; background:var(--panel); border-bottom:1px solid var(--line); flex:0 0 auto;}
   #title{font-weight:650; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   #title small{display:block; font-weight:400; font-size:11px; color:var(--muted);}
+  /* The property name IS the title — a native select so iOS gives it a wheel. */
+  #propSel{
+    -webkit-appearance:none; appearance:none;
+    background:transparent; border:0; border-radius:0; padding:0 17px 0 0;
+    width:auto; min-width:0; max-width:52vw; font-weight:650; font-size:15px; line-height:1.2;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2396a2b6' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 1px center; background-size:10px 6px;
+  }
+  #propSel:focus{outline:none;}
   #top .spacer{flex:1;}
   #top button{padding:8px 10px; font-size:13px;}
 
@@ -120,7 +129,10 @@
 <body>
 
 <div id="top">
-  <div id="title">Furniture Planner<small id="subtitle">Two-bedroom unit</small></div>
+  <div id="title">
+    <select id="propSel" title="Which property are you planning?"></select>
+    <small id="subtitle">Two-bedroom unit</small>
+  </div>
   <div class="spacer"></div>
   <button id="btnFit" title="Toggle between the house and the whole property">All</button>
   <button id="btnAdd" class="primary">+ Add</button>
@@ -207,8 +219,8 @@
   <div class="body">
     <div class="banner">
       Every room the plan puts a number on is built at <b>exactly</b> that number — those are the advertised, measured figures.
-      The drawing was only used for the layout, since tracing it came out 0.1–0.75&nbsp;m short almost everywhere.
-      Rooms with no printed dimension (bath, laundry, hall, and the wrap-around paving) are marked
+      The drawing was only used for the layout, since tracing it never quite agrees with the printed figures.
+      Rooms with no printed dimension (<span id="derivedList">—</span>) are marked
       <span class="pill">sized to fit</span> — they take up the slack and are the least reliable.
       <br><br>Resizing a room stretches that room and its fixtures only — it does <b>not</b> push the neighbouring rooms out of
       the way, so a big change will make rooms overlap on screen.
@@ -226,10 +238,11 @@
 <div class="sheet" id="sheetPlan">
   <header><h2>Plan image underlay</h2><button class="ghost sheet-close">Done</button></header>
   <div class="body">
-    <p class="note">Load the original marketing floor plan image to compare it against the model. It stays on this device.
-      Expect it <b>not</b> to line up perfectly: the plan here is built to the printed dimensions, and the drawing is
-      a little short in most places, so no single scale matches everywhere. Use it as a sanity check on the layout,
-      not on the sizes.</p>
+    <p class="note">Load the original marketing floor plan image to compare it against the model. It stays on this device,
+      and each property keeps its own image.
+      Expect it <b>not</b> to line up perfectly: the plan here is built to the printed dimensions and the drawing
+      rarely agrees with them everywhere at once, so no single scale matches the whole page. Use it as a sanity
+      check on the layout, not on the sizes.</p>
     <div class="row"><div><label>Image file</label><input id="uiFile" type="file" accept="image/*"></div></div>
     <div class="row">
       <div><label>Show</label><button id="uiShow" style="width:100%">Off</button></div>
@@ -282,7 +295,12 @@
 <script>
 "use strict";
 /* =======================================================================
-   FLOOR PLAN MODEL  —  two-bedroom unit
+   FLOOR PLAN MODELS  —  one object per property
+   -----------------------------------------------------------------------
+   Two properties are modelled: VEGA (the two-bedroom unit) and HYDRAE (the
+   two-bedroom villa with the garage). They share the same room ids, so the
+   one measured furniture list seeds either of them, and each keeps its own
+   saved layout, room/door overrides and plan underlay.
    -----------------------------------------------------------------------
    Coordinates are METRES, x → east (right), y → south (down).
    Origin (0,0) = inside face of the north-west corner of Bed 2.
@@ -303,7 +321,9 @@
    Everything here is user-editable at runtime.
    ======================================================================= */
 
-const PLAN = {
+const VEGA = {
+  id: "vega",
+  name: "Vega",
   label: "Two-bedroom unit",
   rooms: [
     { id:"bed2",   name:"Bed 2",          kind:"room",    labelled:[4.1,2.7],
@@ -395,6 +415,136 @@ const PLAN = {
   underlayDefault: { mpp: 1/67, x: -447/67, y: -372/67, opacity: 0.55 }
 };
 
+/* =======================================================================
+   HYDRAE  —  two-bedroom villa with a single garage
+   -----------------------------------------------------------------------
+   Same conventions as Vega: metres, x → east, y → south, 0.10 m between
+   rooms, room rects are INSIDE wall faces. Origin (0,0) is the inside face
+   of the north-west corner of the MASTER bedroom.
+
+   Built from the printed figures, the drawing used for the layout:
+
+     MASTER  3.5 × 3.5      BED 2   2.8 × 3.5
+     KITCHEN 3.0 × 2.4      DINING  3.0 × 2.8
+     LOUNGE  3.6 × 5.2      GARAGE  3.0 × 5.3
+
+   Reading them off the drawing, the first number of each pair is the
+   north-south depth and the second the east-west width — which is why the
+   kitchen (3.0 deep, 2.4 wide) sits tall and narrow beside the dining, and
+   the lounge (3.6 deep, 5.2 wide) sits wide and shallow below both.
+
+   Bath, laundry, hall and the garden/paving carry no printed figure, so
+   they absorb the slack and are marked `derived:true`.
+   ======================================================================= */
+const HYDRAE = {
+  id: "hydrae",
+  name: "Hydrae",
+  label: "Two-bedroom villa, single garage",
+  rooms: [
+    /* --- north band: bedrooms over bath / laundry / hall, 5.30 deep --- */
+    { id:"bed1",   name:"Master",         kind:"room",    labelled:[3.5,3.5],
+      rects:[[0.00,0.00,3.50,3.50]],
+      note:"Printed 3.5 × 3.5. The robe runs along the south wall and is modelled as occupied floor inside the room, so the clear floor in front of it is about 2.9 m. Windows face the garden on the west; the door is at the south-east corner into the hall." },
+
+    { id:"bed2",   name:"Bed 2",          kind:"room",    labelled:[3.5,2.8],
+      rects:[[3.60,0.00,3.50,2.80]],
+      note:"Printed 3.5 m runs east-west including the robe recess against the master's wall, so the clear floor beside it is about 2.9 m. Its door is on the SOUTH wall, into the top of the hall." },
+
+    { id:"bath",   name:"Bath",           kind:"wet",     labelled:null, derived:true,
+      rects:[[4.70,2.90,2.40,2.40]],
+      note:"One bathroom, sitting under Bed 2: bath and shower along the east wall, WC and linen press at the north, vanity along the south. No printed size — it takes up the slack between Bed 2 and the kitchen." },
+
+    { id:"ldry",   name:"L'dry",          kind:"wet",     labelled:null, derived:true,
+      rects:[[0.00,3.60,2.30,1.70]],
+      note:"Tucked under the master with the tub against the north wall and the door on the east into the hall. No printed size." },
+
+    { id:"hall",   name:"Hall",           kind:"room",    labelled:null, derived:true,
+      rects:[[3.60,2.90,1.00,2.40],[2.40,3.60,1.20,1.70]],
+      seams:[[3.60,3.60,3.60,5.30]],
+      note:"An L: the long leg runs down the east side of the master from Bed 2's door to the living room, and a short leg turns west under the master to reach the master and laundry doors. The bath opens off the long leg." },
+
+    /* --- south band: kitchen, open living/dining, garage --- */
+    { id:"kitchen",name:"Kitchen",        kind:"room",    labelled:[3.0,2.4], blocked:true,
+      rects:[[4.70,5.40,2.40,2.90]],
+      note:"Blocked out — the fridge and the pantry are the only things going in here, so the benches are not modelled and anything parked here is flagged as clashing. Built 2.90 m deep rather than the printed 3.0: its south wall has to land on the same line where the dining opens into the lounge, and the two printed figures cannot both hold once a wall thickness is allowed for." },
+
+    { id:"living", name:"Lounge / Dining",kind:"room",    labelled:null,
+      /* Two printed figures, one room — no single bounding pair says it, so
+         `printed` carries the text and it stays out of the "sized to fit" list. */
+      printed:"3.0 × 2.8 dining + 3.6 × 5.2 lounge",
+      rects:[[1.80,5.40,2.80,3.00],[1.80,8.40,5.20,3.60]],
+      seams:[[1.80,8.40,4.60,8.40]],
+      note:"One open L-shaped space, because the drawing shows no wall between them: the dining end is the printed 3.0 × 2.8 beside the kitchen, and the lounge below it is the printed 3.6 × 5.2. Modelling them as two rooms would put an invisible wall through the middle and wrongly fail anything standing across it. The front door is on the east wall of the lounge; the sliding door and the side door open onto the paving to the west." },
+
+    { id:"garage", name:"Garage",         kind:"garage",  labelled:[5.3,3.0],
+      rects:[[0.40,12.10,5.30,3.00]],
+      note:"Printed 3.0 × 5.3, sitting square under the lounge and set back from its east wall. The car is drawn lengthways east-west, so the roller door has to be on the 3.0 m west wall facing the drive — there is no internal door between the garage and the house." },
+
+    { id:"court",  name:"Garden / paving",kind:"outdoor", labelled:null, derived:true,
+      rects:[[-3.00,0.00,1.90,16.20],[-1.10,0.00,1.00,5.40],[-1.10,5.40,2.80,6.60],
+             [-1.10,12.00,1.40,4.20],[-3.00,16.20,4.00,1.20],[7.10,8.40,1.30,2.00]],
+      seams:[[-1.10,5.40,-0.10,5.40],[-1.10,12.00,0.30,12.00],[-1.10,16.20,1.00,16.20]],
+      note:"No printed size. The planted strip runs the full length of the western boundary; the paving beside the lounge and dining narrows past the garage to reach the garage door, with steps up into the house at both openings. The small rectangle on the east is the entry porch." }
+  ],
+
+  fixtures: [
+    { room:"bed1",   label:"Robe",        rect:[0.40,2.90,2.20,0.60] },
+    { room:"bed2",   label:"Robe",        rect:[3.60,0.00,0.60,2.00] },
+    { room:"bath",   label:"Linen",       rect:[4.70,2.90,0.55,0.90] },
+    { room:"bath",   label:"WC",          rect:[5.30,2.95,0.45,0.70] },
+    { room:"bath",   label:"Shower",      rect:[6.20,2.90,0.90,0.90] },
+    { room:"bath",   label:"Bath tub",    rect:[6.40,3.80,0.70,1.50] },
+    { room:"bath",   label:"Vanity",      rect:[4.80,4.75,1.10,0.55] },
+    { room:"ldry",   label:"Tub / washer",rect:[0.00,3.60,0.70,0.65] }
+  ],
+
+  /* Widths are ESTIMATES from standard sizes, exactly as for Vega — the
+     first thing worth measuring. All editable under Rooms. */
+  doors: [
+    { id:"front",   name:"Front entry door",     seg:[7.05,8.60, 7.05,9.50],   w:0.90, rooms:["living","out"],    type:"external" },
+    { id:"slider",  name:"Lounge sliding door",  seg:[1.75,9.40, 1.75,11.00],  w:1.60, rooms:["living","court"],  type:"slider" },
+    { id:"sidedr",  name:"Dining side door",     seg:[1.75,5.70, 1.75,6.52],   w:0.82, rooms:["living","court"],  type:"external" },
+    { id:"halll",   name:"Hall / living opening",seg:[3.20,5.35, 4.10,5.35],   w:0.90, rooms:["hall","living"],   type:"opening" },
+    { id:"bed1d",   name:"Master door",          seg:[2.60,3.55, 3.42,3.55],   w:0.82, rooms:["bed1","hall"],     type:"door" },
+    { id:"bed2d",   name:"Bed 2 door",           seg:[3.75,2.85, 4.57,2.85],   w:0.82, rooms:["bed2","hall"],     type:"door" },
+    { id:"bathd",   name:"Bath door",            seg:[4.65,3.95, 4.65,4.72],   w:0.77, rooms:["bath","hall"],     type:"door" },
+    { id:"ldryd",   name:"Laundry door",         seg:[2.35,3.80, 2.35,4.57],   w:0.77, rooms:["ldry","hall"],     type:"door" },
+    /* The kitchen is open to the dining across a bench return rather than
+       doored. Blocked out anyway, so this affects no fit result. */
+    { id:"kitcho",  name:"Kitchen opening",      seg:[4.65,6.40, 4.65,7.40],   w:1.00, rooms:["kitchen","living"],type:"opening" },
+    { id:"garroll", name:"Garage roller door",   seg:[0.35,12.45, 0.35,14.85], w:2.40, rooms:["garage","out"],    type:"roller" }
+  ],
+
+  routes: {
+    living:  [["front"],["slider"],["sidedr"]],
+    kitchen: [["front","kitcho"],["slider","kitcho"],["sidedr","kitcho"]],
+    hall:    [["front","halll"],["slider","halll"],["sidedr","halll"]],
+    bed1:    [["front","halll","bed1d"],["slider","halll","bed1d"],["sidedr","halll","bed1d"]],
+    bed2:    [["front","halll","bed2d"],["slider","halll","bed2d"],["sidedr","halll","bed2d"]],
+    bath:    [["front","halll","bathd"],["slider","halll","bathd"],["sidedr","halll","bathd"]],
+    ldry:    [["front","halll","ldryd"],["slider","halll","ldryd"],["sidedr","halll","ldryd"]],
+    garage:  [["garroll"]],
+    court:   [[]]
+  },
+
+  /* The supplied plan photo is 3290 × 4455. Traced at roughly 232 px per
+     metre with the inside NW corner of the master at pixel (821, 101). */
+  underlayDefault: { mpp: 1/232, x: -821/232, y: -101/232, opacity: 0.55 }
+};
+
+/* Every property the planner knows about. Adding another is a matter of
+   writing one more of these objects and dropping it in this list. */
+const PROPERTIES = [VEGA, HYDRAE];
+const PROP_KEY = "floorplan-planner-property";
+
+function storedProperty(){
+  let id = null;
+  try{ id = localStorage.getItem(PROP_KEY); }catch(e){}
+  return PROPERTIES.find(p => p.id === id) || PROPERTIES[0];
+}
+/* The plan currently on screen. Reassigned by switchProperty(). */
+let PLAN = storedProperty();
+
 /* No red in here on purpose — red is reserved for "this doesn't fit". */
 const PALETTE = ["#4f9cf9","#3ecf8e","#f2b544","#b3846a","#a77bf3","#39c2d7","#ef7fb0","#8bbf4c","#e2833c","#6f7ff0"];
 
@@ -441,8 +591,28 @@ const FURNITURE = [
 /* v2: the plan was re-laid to the printed dimensions, so v1 room overrides
    and saved positions no longer mean the same thing. */
 const NUDGE_STEPS_OK = v => [10,50,100].includes(v);
-const STORE_KEY = "floorplan-planner-v2";
-const IMG_KEY   = "floorplan-planner-img-v1";
+/* One saved layout per property, so switching between them loses nothing.
+   The un-suffixed keys are what the single-property version of this file
+   wrote; they are migrated to Vega's keys once, on first run. */
+const STORE_KEY = id => "floorplan-planner-v2:" + id;
+const IMG_KEY   = id => "floorplan-planner-img-v1:" + id;
+const LEGACY_STORE_KEY = "floorplan-planner-v2";
+const LEGACY_IMG_KEY   = "floorplan-planner-img-v1";
+
+function migrateLegacyStore(){
+  try{
+    const old = localStorage.getItem(LEGACY_STORE_KEY);
+    if(old && !localStorage.getItem(STORE_KEY("vega"))){
+      localStorage.setItem(STORE_KEY("vega"), old);
+      localStorage.removeItem(LEGACY_STORE_KEY);
+    }
+    const oldImg = localStorage.getItem(LEGACY_IMG_KEY);
+    if(oldImg && !localStorage.getItem(IMG_KEY("vega"))){
+      localStorage.setItem(IMG_KEY("vega"), oldImg);
+      localStorage.removeItem(LEGACY_IMG_KEY);
+    }
+  }catch(e){ /* quota or private mode — the old layout just stays put */ }
+}
 
 const state = {
   items: [],
@@ -478,7 +648,7 @@ const cm = m => Math.round(m*100);
    ======================================================================= */
 function save(){
   try{
-    localStorage.setItem(STORE_KEY, JSON.stringify({
+    localStorage.setItem(STORE_KEY(PLAN.id), JSON.stringify({
       items: state.items, roomDims: state.roomDims, doorW: state.doorW,
       units: state.units, clearance: state.clearance, snap: state.snap,
       autoPanel: state.autoPanel, nudge: state.nudge,
@@ -498,7 +668,7 @@ document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState=
 
 function load(){
   let raw=null;
-  try{ raw = localStorage.getItem(STORE_KEY); }catch(e){}
+  try{ raw = localStorage.getItem(STORE_KEY(PLAN.id)); }catch(e){}
   if(!raw){ seedFurniture(); return; }
   try{
     const d = JSON.parse(raw);
@@ -514,7 +684,7 @@ function load(){
     uid = state.items.reduce((a,i)=>Math.max(a, i.id+1), 1);
   }catch(e){ seedFurniture(); }
   try{
-    const img = localStorage.getItem(IMG_KEY);
+    const img = localStorage.getItem(IMG_KEY(PLAN.id));
     if(img) setUnderlayImage(img, false);
   }catch(e){}
 }
@@ -1533,6 +1703,8 @@ $("afSave").onclick = ()=>{
 
 /* ---------- rooms & doors ---------- */
 function renderRooms(){
+  const derived = PLAN.rooms.filter(r => !r.labelled && !r.printed).map(r => r.name.toLowerCase());
+  $("derivedList").textContent = derived.length ? derived.join(", ") : "none";
   const host = $("roomList"); host.innerHTML="";
   for(const r of PLAN.rooms){
     const ext = roomExtent(r), lab = roomLabelDims(r);
@@ -1541,6 +1713,8 @@ function renderRooms(){
     const mism = r.labelled && (Math.abs(r.labelled[0]-lab[0])>0.01 || Math.abs(r.labelled[1]-lab[1])>0.01);
     const chip = r.labelled
       ? `<span class="pill ${mism?"warn":"ok"}">plan says ${r.labelled[0]} × ${r.labelled[1]}</span>`
+      : r.printed
+      ? `<span class="pill ok">plan says ${escapeHtml(r.printed)}</span>`
       : `<span class="pill">sized to fit</span>`;
     wrap.innerHTML =
       `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
@@ -1598,7 +1772,7 @@ function setUnderlayImage(src, persist){
   img.onload = ()=>{ underlayImg = img; state.underlay.visible = true; syncUnderlayUI(); draw(); };
   img.src = src;
   if(persist){
-    try{ localStorage.setItem(IMG_KEY, src); }
+    try{ localStorage.setItem(IMG_KEY(PLAN.id), src); }
     catch(e){ alert("The image is too large to save on this device — it will work for this session but you'll need to load it again next time."); }
   }
 }
@@ -1626,7 +1800,7 @@ $("uiReset").onclick = ()=>{
 };
 $("uiClear").onclick = ()=>{
   underlayImg=null; state.underlay.visible=false; state.underlay.align=false;
-  try{ localStorage.removeItem(IMG_KEY); }catch(e){}
+  try{ localStorage.removeItem(IMG_KEY(PLAN.id)); }catch(e){}
   syncUnderlayUI(); save(); draw();
 };
 function syncUnderlayUI(){
@@ -1660,7 +1834,8 @@ $("optAutoPanel").onclick = ()=>{
 
 function exportPayload(){
   return JSON.stringify({
-    app:"floorplan-planner", version:1, label:PLAN.label,
+    app:"floorplan-planner", version:2,
+    property:PLAN.id, propertyName:PLAN.name, label:PLAN.label,
     items: state.items, roomDims: state.roomDims, doorW: state.doorW,
     units: state.units, clearance: state.clearance
   }, null, 2);
@@ -1669,7 +1844,7 @@ $("btnExport").onclick = ()=>{
   const blob = new Blob([exportPayload()], {type:"application/json"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "furniture-plan.json";
+  a.download = `furniture-plan-${PLAN.id}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
 };
@@ -1686,6 +1861,14 @@ function applyImport(txt){
   try{
     const d=JSON.parse(txt);
     if(!Array.isArray(d.items)) throw 0;
+    /* Layouts saved before there was more than one property carry no
+       property id — those belong to whatever is on screen. */
+    if(d.property && d.property !== PLAN.id){
+      const p = PROPERTIES.find(x => x.id === d.property);
+      if(!p){ alert("That file is for a property this app doesn't know about."); return; }
+      if(!confirm(`That's a ${p.name} layout. Switch to ${p.name} and load it?`)) return;
+      switchProperty(p.id);
+    }
     state.items = d.items.map(normaliseItem);
     state.roomDims = d.roomDims || {};
     state.doorW = d.doorW || {};
@@ -1702,11 +1885,61 @@ $("btnWipe").onclick = ()=>{
 };
 
 /* =======================================================================
+   PROPERTIES
+   ======================================================================= */
+function buildPropertyPicker(){
+  const sel = $("propSel");
+  sel.innerHTML = "";
+  for(const p of PROPERTIES){
+    const o = document.createElement("option");
+    o.value = p.id; o.textContent = p.name;
+    sel.appendChild(o);
+  }
+  sel.addEventListener("change", e => switchProperty(e.target.value));
+}
+function syncProperty(){
+  $("propSel").value = PLAN.id;
+  $("subtitle").textContent = PLAN.label;
+  document.title = PLAN.name + " — Furniture Planner";
+}
+
+/* Switching is non-destructive: the layout you are leaving is written out
+   first, and the one you are going to is read back exactly as you left it.
+   A property you have never opened starts from the measured furniture list,
+   the same way the app does on a fresh install. */
+function switchProperty(id){
+  const next = PROPERTIES.find(p => p.id === id);
+  if(!next || next.id === PLAN.id){ syncProperty(); return; }
+  flush();
+  PLAN = next;
+  try{ localStorage.setItem(PROP_KEY, PLAN.id); }catch(e){}
+
+  state.items = []; state.sel = null; state.roomDims = {}; state.doorW = {};
+  Object.assign(state.underlay, PLAN.underlayDefault, { visible:false, align:false });
+  underlayImg = null;
+  uid = 1;
+  checks.clear();
+  load();
+
+  fitWide = false;
+  $("btnFit").textContent = "All";
+  syncProperty();
+  select(null);
+  recheck();
+  fitView(false);
+  renderItemList(); renderRooms(); syncOptions(); syncUnderlayUI();
+  closeSheets();
+  draw();
+}
+
+/* =======================================================================
    MISC
    ======================================================================= */
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
 
-document.getElementById("subtitle").textContent = PLAN.label;
+migrateLegacyStore();
+buildPropertyPicker();
+syncProperty();
 
 load();
 resize();
